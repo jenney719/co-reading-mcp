@@ -146,6 +146,12 @@ function translateError(message) {
   return /\p{Script=Han}/u.test(text) ? text : "操作失败，请检查网络或文件后重试。";
 }
 
+function annotationAuthorClass(author) {
+  return ["claude", "assistant"].includes(String(author || "").trim().toLowerCase())
+    ? "author-partner"
+    : "author-human";
+}
+
 function replyClass(reply, root) {
   const sameAuthor = String(reply.author || "").toLowerCase() === String(root.author || "").toLowerCase();
   return sameAuthor ? "reply root-author" : "reply other-author";
@@ -167,7 +173,7 @@ function renderReply(reply, root, notes, depth = 1, seen = new Set()) {
   nextSeen.add(reply.id);
   const children = repliesFor(reply.id, notes);
   const visibleDepth = Math.min(depth, 4);
-  return `<div class="${replyClass(reply, root)}" style="--reply-depth: ${visibleDepth}">
+  return `<div class="${replyClass(reply, root)} ${annotationAuthorClass(reply.author)}" style="--reply-depth: ${visibleDepth}">
     <p class="reply-body">${formatNote(reply.note)}</p>
     <div class="note-meta">${escapeHtml(formatIdentity(reply.author))} · ${escapeHtml(formatKind(reply.kind || "reply"))}</div>
     ${
@@ -193,7 +199,7 @@ function renderThread(note, notes) {
 }
 
 function renderInlineNote(note, notes) {
-  return `<aside class="inline-note" data-note-id="${escapeHtml(note.id)}">
+  return `<aside class="inline-note ${annotationAuthorClass(note.author)}" data-note-id="${escapeHtml(note.id)}">
     <p class="inline-note-kicker">${escapeHtml(formatIdentity(note.author))} · ${escapeHtml(formatKind(note.kind || "note"))}</p>
     <p class="note-body">${formatNote(note.note)}</p>
     ${renderThread(note, notes)}
@@ -263,7 +269,7 @@ function renderText() {
     html += escapeHtml(text.slice(cursor, highlight.start));
     const quote = escapeHtml(text.slice(highlight.start, highlight.end));
     const bookmark = highlight.shared ? `<span class="shared-bookmark" title="这里有两个人的折痕。">此处有回声</span>` : "";
-    html += `<mark class="${highlight.note.id === state.activeAnnotationId ? "active" : ""} ${highlight.shared ? "shared" : ""}" data-note-id="${escapeHtml(highlight.note.id)}" title="${escapeHtml(highlight.note.note)}">${quote}</mark>${bookmark}${
+    html += `<mark class="${annotationAuthorClass(highlight.note.author)} ${highlight.note.id === state.activeAnnotationId ? "active" : ""} ${highlight.shared ? "shared" : ""}" data-note-id="${escapeHtml(highlight.note.id)}" title="${escapeHtml(highlight.note.note)}">${quote}</mark>${bookmark}${
       highlight.note.id === state.activeAnnotationId ? renderInlineNote(highlight.note, notes) : ""
     }`;
     cursor = highlight.end;
@@ -295,7 +301,7 @@ function renderAnnotations() {
       const replies = replyCount(note.id, notes);
       const expanded = note.id === state.activeAnnotationId;
       const isShared = sharedNoteIdSet(notes).has(note.id);
-      return `<article class="note-card ${(note.status || "") === "open" ? "open" : ""} ${expanded ? "active" : ""}" data-note-id="${escapeHtml(note.id)}" tabindex="0">
+      return `<article class="note-card ${annotationAuthorClass(note.author)} ${(note.status || "") === "open" ? "open" : ""} ${expanded ? "active" : ""}" data-note-id="${escapeHtml(note.id)}" tabindex="0">
         ${isShared ? `<p class="shared-line">这里有两个人的折痕。</p>` : ""}
         <p class="note-quote">${escapeHtml(note.quote)}</p>
         <p class="note-body">${formatNote(note.note)}</p>

@@ -891,3 +891,27 @@ body.note-open .submitbar { display: none; }
   .note-form .form-actions { margin-top: 8px; }
   .toast { bottom: calc(64px + env(safe-area-inset-bottom)); }
 }
+
+
+/* Co-reader annotations use blue in text, margin cards and replies. */
+:root {
+  --partner-note-bg: rgba(134, 178, 221, 0.18);
+  --partner-note-border: #8fb7d9;
+}
+.text mark.author-partner:not(.shared) { background: var(--partner-note-bg); }
+.text mark.author-partner.active { box-shadow: 0 0 0 2px var(--partner-note-border); }
+.note-card.author-partner,
+.note-card.author-partner.active,
+.inline-note.author-partner,
+.reply.author-partner {
+  background: var(--partner-note-bg);
+  border-color: var(--partner-note-border);
+}
+.note-card.author-partner .note-quote { border-left-color: var(--partner-note-border); }
+.reply.author-human { background: var(--bg); }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --partner-note-bg: rgba(119, 168, 216, 0.22);
+    --partner-note-border: #83acd1;
+  }
+}
