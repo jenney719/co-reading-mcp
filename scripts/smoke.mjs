@@ -922,7 +922,7 @@ if (httpBooksAfterDelete.some((book) => book.bookId === "http-import")) {
 if (httpDeletedProgress !== null || httpDeletedAnnotations.length !== 0 || httpDeletedCards.length !== 0) {
   throw new Error("HTTP API did not remove deleted book state from active records");
 }
-if (!readerHtml.ok || !(await readerHtml.text()).includes("Co-Reading")) {
+if (!readerHtml.ok || !(await readerHtml.text()).includes('id="books"')) {
   throw new Error("HTTP reader did not serve the web UI");
 }
 if (sseReaderHtml.status !== 401) {
@@ -931,7 +931,7 @@ if (sseReaderHtml.status !== 401) {
 if (sseTokenRedirect.status !== 302) {
   throw new Error("SSE process did not 302-redirect ?token URL to strip token from address bar");
 }
-if (!sseReaderAuthorized.ok || !(await sseReaderAuthorized.text()).includes("Co-Reading")) {
+if (!sseReaderAuthorized.ok || !(await sseReaderAuthorized.text()).includes('id="books"')) {
   throw new Error("SSE process did not serve authorized reader UI");
 }
 if (!sseCookie.includes("co_reading_token=") || !sseCssWithCookie.ok) {

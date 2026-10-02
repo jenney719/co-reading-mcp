@@ -1,85 +1,85 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Co-Reading</title>
+    <title>共读书屋</title>
     <link rel="stylesheet" href="/reader.css" />
   </head>
   <body>
     <main class="app">
-      <section class="sidebar" aria-label="Library">
+      <section class="sidebar" aria-label="书库">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Co-Reading</p>
-            <h1>Library</h1>
+            <p class="eyebrow">共读书屋</p>
+            <h1>书库</h1>
           </div>
           <div class="topbar-actions">
-            <button id="import-book" class="icon-button" title="Import EPUB or TXT">＋</button>
-            <button id="refresh" class="icon-button" title="Refresh library">↻</button>
+            <button id="import-book" class="icon-button" title="导入 EPUB、TXT 或 Markdown 书籍" aria-label="导入书籍">＋</button>
+            <button id="refresh" class="icon-button" title="刷新书库" aria-label="刷新书库">↻</button>
           </div>
           <input id="import-file" type="file" accept=".epub,.txt,.text,.md,.markdown" multiple hidden />
         </header>
         <div id="books" class="books" aria-live="polite"></div>
       </section>
 
-      <section class="chapters" aria-label="Chapters">
+      <section class="chapters" aria-label="章节">
         <header class="panel-head">
-          <p id="book-meta" class="eyebrow">Choose a book</p>
-          <h2 id="book-title">Reading shelf</h2>
+          <p id="book-meta" class="eyebrow">请选择一本书</p>
+          <h2 id="book-title">阅读书架</h2>
         </header>
         <div id="chunks" class="chunk-list"></div>
       </section>
 
-      <section class="reader" aria-label="Reader">
+      <section class="reader" aria-label="阅读区">
         <header class="reader-head">
           <div>
-            <p id="chunk-file" class="eyebrow">No chapter selected</p>
-            <h2 id="chunk-title">Open a chapter to start reading</h2>
+            <p id="chunk-file" class="eyebrow">尚未选择章节</p>
+            <h2 id="chunk-title">打开章节，开始共读</h2>
           </div>
           <div class="reader-actions">
-            <button id="show-card" class="secondary-button" disabled>Cards</button>
-            <button id="continue-reading" class="secondary-button" disabled>Continue</button>
-            <button id="mark-read" class="secondary-button" disabled>Mark read</button>
+            <button id="show-card" class="secondary-button" disabled>书签卡片</button>
+            <button id="continue-reading" class="secondary-button" disabled>继续阅读</button>
+            <button id="mark-read" class="secondary-button" disabled>标记已读</button>
           </div>
         </header>
 
         <article id="text" class="text">
-          <p class="empty">Select a book and chapter. Highlight text to leave a note for Claude.</p>
+          <p class="empty">请选择书籍和章节。选中文字，就能写下你的批注。</p>
         </article>
 
-        <aside id="margins" class="margins" aria-label="Margin notes"></aside>
+        <aside id="margins" class="margins" aria-label="页边批注"></aside>
 
         <form id="note-form" class="note-form" hidden>
           <div class="quote-preview" id="quote-preview"></div>
-          <textarea id="note" rows="3" placeholder="Leave a note for Claude..."></textarea>
+          <textarea id="note" rows="3" placeholder="写下你的想法，分享后共读伙伴才能看到……" aria-label="批注内容"></textarea>
           <div class="form-actions">
-            <button type="button" id="cancel-note" class="secondary-button">Cancel</button>
-            <button type="submit" class="primary-button">Save note</button>
+            <button type="button" id="cancel-note" class="secondary-button">取消</button>
+            <button type="submit" class="primary-button">保存批注</button>
           </div>
         </form>
 
         <footer class="submitbar">
-          <span id="status">Private notes stay local until you send them.</span>
+          <span id="status">批注先保存在书屋，分享后共读伙伴才能读取。</span>
           <div class="submit-actions">
-            <button id="note-selection" class="secondary-button" disabled>Note selection</button>
-            <button id="submit-notes" class="primary-button" disabled>Send to Claude</button>
+            <button id="note-selection" class="secondary-button" disabled>批注选中文字</button>
+            <button id="submit-notes" class="primary-button" title="分享后，请在聊天中让共读伙伴读取最新批注" disabled>分享批注</button>
           </div>
         </footer>
 
         <div id="toast" class="toast" hidden></div>
 
-        <aside id="card-panel" class="card-panel" hidden aria-label="Reading card">
+        <aside id="card-panel" class="card-panel" hidden aria-label="共读书签卡片">
           <div class="card-panel-head">
             <div>
-              <p class="eyebrow">Ritual Card</p>
-              <h2>Shared trace</h2>
+              <p class="eyebrow">共读书签</p>
+              <h2>一起留下的痕迹</h2>
             </div>
-            <button id="card-close" class="icon-button" title="Close">×</button>
+            <button id="card-close" class="icon-button" title="关闭" aria-label="关闭卡片">×</button>
           </div>
           <div id="card-preview" class="card-preview"></div>
           <div class="card-actions">
-            <button id="card-random" class="secondary-button">Another version</button>
+            <button id="card-random" class="secondary-button">换一张</button>
           </div>
         </aside>
       </section>

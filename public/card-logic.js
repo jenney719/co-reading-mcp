@@ -92,6 +92,27 @@ export function sharedNoteIdSet(annotations = []) {
   return ids;
 }
 
+function finishText(text) {
+  const messages = {
+    "The last page is turned.": "最后一页，已经翻过。",
+    "The book is closed, but the margins are still awake.": "书已合上，页边的回声仍在。",
+    "Offer the human one favorite passage, one unresolved question, or one small afterword.": "留下一段喜欢的文字、一个未解的问题，或一篇小小的后记。",
+    "A shared trail is complete.": "一起走过的阅读之路，已抵达终点。",
+    "Every marked page is now part of the route you took together.": "每一页留下的记号，都属于你们一起走过的路。",
+    "Name the strongest resonance from the book, then invite the human to answer with theirs.": "说说书中最深的共鸣，也听听彼此的答案。",
+    "Book finished, margins preserved.": "书已读完，批注仍在。",
+    "The reading is done; the conversation can keep unfolding from any note.": "阅读告一段落，对话仍能从任意一条批注继续。",
+    "Write a short closing note that feels like placing a bookmark after the final page.": "写一条简短的合卷寄语，像在最后一页放下书签。",
+    "The shelf has one more finished thing.": "书架上，又多了一本一起读完的书。",
+    "Progress says complete; the annotations say it was lived through.": "进度记录着读完，批注记录着那些真实的感受。",
+    "Summarize the book in three pulses: image, feeling, question.": "用一个画面、一种感受和一个问题，留下这本书的余韵。",
+    "End of book, not end of thread.": "书有结尾，话题仍在延续。",
+    "All chunks are read, and the page-side rooms remain open.": "所有片段都已读完，页边的对话仍为你们敞开。",
+    "Choose one annotation worth returning to later and explain why.": "选一条值得日后重访的批注，说说它为何值得留下。",
+  };
+  return messages[text] || text;
+}
+
 export function buildCardCandidates({ book = {}, chunk = {}, annotations = [], finish = null } = {}) {
   const candidates = [];
   const shared = findSharedMoments(annotations);
@@ -103,14 +124,14 @@ export function buildCardCandidates({ book = {}, chunk = {}, annotations = [], f
       art: index % 2 === 0 ? "fold" : "ripple",
       artSeed: hashText(`${moment.userNote.id}:${moment.claudeNote.id}:${moment.quote}`),
       kicker: index % 2 === 0 ? sharedBookmarkLines[0] : sharedBookmarkLines[1],
-      title: "Shared Margin",
+      title: "共同的页边",
       subtitle: [book.title, chunk.title].filter(Boolean).join(" · "),
       quote: compactText(moment.quote, 150),
-      leftLabel: "Claude",
+      leftLabel: "共读伙伴",
       leftText: compactText(moment.claudeNote.note, 130),
-      rightLabel: "You",
+      rightLabel: "你",
       rightText: compactText(moment.userNote.note, 130),
-      footer: "Read together, once at the same sentence.",
+      footer: "一起读过，在同一句话旁停留。",
       source: "shared",
     });
   }
@@ -121,15 +142,15 @@ export function buildCardCandidates({ book = {}, chunk = {}, annotations = [], f
       variant: "finish",
       art: "fold",
       artSeed: hashText(`${book.bookId || book.id || book.title}:finish`),
-      kicker: finish.celebration?.title || "Book finished, margins preserved.",
-      title: book.title || "Finished book",
+      kicker: finishText(finish.celebration?.title) || "书已读完，批注仍在。",
+      title: book.title || "读完的书",
       subtitle: book.author || "",
-      quote: finish.celebration?.line || "The book is closed, but the margins are still awake.",
-      leftLabel: "Progress",
-      leftText: `${finish.chunkCount || finish.chunksRead || ""}${finish.chunkCount ? " chunks" : ""}`.trim(),
-      rightLabel: "Margins",
-      rightText: `${finish.annotationCount || 0} notes`,
-      footer: finish.celebration?.prompt || "Choose one sentence to carry forward.",
+      quote: finishText(finish.celebration?.line) || "书已合上，页边的回声仍在。",
+      leftLabel: "阅读进度",
+      leftText: `${finish.chunkCount || finish.chunksRead || ""}${finish.chunkCount ? " 个片段" : ""}`.trim(),
+      rightLabel: "页边批注",
+      rightText: `${finish.annotationCount || 0} 条批注`,
+      footer: finishText(finish.celebration?.prompt) || "选一句话，带到下一段旅程。",
       source: "finish",
     });
   }
@@ -142,15 +163,15 @@ export function buildCardCandidates({ book = {}, chunk = {}, annotations = [], f
       variant: "quiet",
       art: "stardust",
       artSeed: hashText(`${resonant.id}:${resonant.quote}`),
-      kicker: "A note worth keeping",
-      title: book.title || "Co-Reading",
+      kicker: "值得留下的想法",
+      title: book.title || "共读书屋",
       subtitle: chunk.title || "",
       quote: compactText(resonant.quote, 150),
-      leftLabel: isClaudeAuthor(resonant.author) ? "Claude" : "You",
+      leftLabel: isClaudeAuthor(resonant.author) ? "共读伙伴" : "你",
       leftText: compactText(resonant.note, 150),
       rightLabel: "",
       rightText: "",
-      footer: "A small card from the margin.",
+      footer: "从页边拾起的一枚小书签。",
       source: "quiet",
     });
   }

@@ -712,6 +712,7 @@ button:disabled {
 
   .reader-head {
     position: sticky;
+    flex-direction: column;
     top: 0;
     z-index: 4;
     padding: 12px 0;
@@ -721,6 +722,7 @@ button:disabled {
 
   .reader-actions {
     flex: 0 0 auto;
+    max-width: 100%;
   }
 
   .reader-actions .secondary-button {

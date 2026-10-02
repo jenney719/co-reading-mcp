@@ -40,7 +40,7 @@ async function api(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || response.statusText);
+  if (!response.ok) throw new Error(translateError(data.error || response.statusText));
   return data;
 }
 
@@ -66,7 +66,7 @@ function formatNote(value) {
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(reader.error || new Error("Could not read file"));
+    reader.onerror = () => reject(reader.error || new Error("无法读取文件，请重新选择"));
     reader.onload = () => {
       const bytes = new Uint8Array(reader.result);
       let binary = "";
@@ -102,9 +102,48 @@ function showToast(message) {
 
 function formatIdentity(author) {
   const value = String(author || "unknown").toLowerCase();
-  if (value === "user" || value === "koshi") return "you";
-  if (value === "claude") return "Claude";
-  return value;
+  if (["user", "human", "you", "koshi"].includes(value)) return "你";
+  if (value === "claude" || value === "assistant") return "共读伙伴";
+  return value === "unknown" ? "未知作者" : value;
+}
+
+function formatKind(kind) {
+  return ({ note: "批注", reply: "回复", annotation: "批注", resonance: "共鸣", feeling: "感受", question: "提问", summary: "小结", thought: "想法" })[kind] || kind;
+}
+
+function formatStatus(status) {
+  return ({ open: "未分享", submitted: "已分享", published: "已发布" })[status] || status;
+}
+
+function translateError(message) {
+  const text = String(message || "操作失败，请稍后重试。");
+  const known = {
+    Unauthorized: "登录已失效，请使用带登录凭证的书屋链接重新打开。",
+    Forbidden: "没有访问权限，请检查登录状态。",
+    "Not found": "找不到请求的内容，请刷新书库。",
+    "Not Found": "找不到请求的内容，请刷新书库。",
+    "Failed to fetch": "网络连接失败，请检查网络后重试。",
+    "Load failed": "网络连接失败，请检查网络后重试。",
+    "NetworkError when attempting to fetch resource.": "网络连接失败，请检查网络后重试。",
+    "Unsupported import format. Use EPUB or TXT.": "不支持此文件格式，请选择 EPUB、TXT 或 Markdown 文件。",
+    "Imported file is empty": "文件内容为空，请重新选择。",
+    "No books imported yet": "书库里还没有书，请先点击＋导入。",
+    "dataBase64 is required": "没有收到文件内容，请重新上传。",
+    "dataBase64 is not valid base64": "上传的文件内容无效，请重新上传。",
+    "Import script failed": "导入失败，请检查文件是否完整。",
+    "Content-Type must be application/json": "上传请求格式不正确，请刷新页面后重试。",
+    "Internal Server Error": "服务器暂时无法完成操作，请稍后重试。",
+    "Bad Gateway": "书屋暂时无法连接，请稍后重试。",
+    "Service Unavailable": "书屋暂时不可用，请稍后重试。",
+    "Gateway Timeout": "连接书屋超时，请稍后重试。",
+  };
+  if (known[text]) return known[text];
+  if (/^(Imported file exceeds|Request body exceeds) \d+ bytes$/.test(text)) return "文件过大，请选择较小的文件后重试。";
+  if (text.startsWith("Book already exists:")) return "书库中已有这本书，请先检查现有书籍。";
+  if (text.startsWith("Unknown bookId:")) return "找不到这本书，请刷新书库。";
+  if (text.startsWith("Unknown chunkId")) return "找不到这个章节，请刷新书库。";
+  if (/Unexpected (token|end)|JSON\.parse/.test(text)) return "服务器返回的内容无法读取，请刷新页面或稍后重试。";
+  return /\p{Script=Han}/u.test(text) ? text : "操作失败，请检查网络或文件后重试。";
 }
 
 function replyClass(reply, root) {
@@ -130,7 +169,7 @@ function renderReply(reply, root, notes, depth = 1, seen = new Set()) {
   const visibleDepth = Math.min(depth, 4);
   return `<div class="${replyClass(reply, root)}" style="--reply-depth: ${visibleDepth}">
     <p class="reply-body">${formatNote(reply.note)}</p>
-    <div class="note-meta">${escapeHtml(formatIdentity(reply.author))} · ${escapeHtml(reply.kind || "reply")}</div>
+    <div class="note-meta">${escapeHtml(formatIdentity(reply.author))} · ${escapeHtml(formatKind(reply.kind || "reply"))}</div>
     ${
       children.length
         ? `<div class="reply-children">${children
@@ -147,15 +186,15 @@ function renderThread(note, notes) {
   return `<div class="thread">
     ${replies.map((reply) => renderReply(reply, note, notes, 1, new Set([note.id]))).join("")}
     <form class="reply-form" data-parent-id="${escapeHtml(note.id)}">
-      <textarea rows="2" placeholder="Reply in this margin...">${escapeHtml(draft)}</textarea>
-      <button type="submit" class="primary-button">Reply</button>
+      <textarea rows="2" placeholder="在这里回复批注……" aria-label="回复内容">${escapeHtml(draft)}</textarea>
+      <button type="submit" class="primary-button">回复</button>
     </form>
   </div>`;
 }
 
 function renderInlineNote(note, notes) {
   return `<aside class="inline-note" data-note-id="${escapeHtml(note.id)}">
-    <p class="inline-note-kicker">${escapeHtml(formatIdentity(note.author))} · ${escapeHtml(note.kind || "note")}</p>
+    <p class="inline-note-kicker">${escapeHtml(formatIdentity(note.author))} · ${escapeHtml(formatKind(note.kind || "note"))}</p>
     <p class="note-body">${formatNote(note.note)}</p>
     ${renderThread(note, notes)}
   </aside>`;
@@ -170,10 +209,10 @@ function renderBooks() {
       return `<div class="book-row ${book.bookId === state.bookId ? "active" : ""}">
         <button class="book" data-book="${escapeHtml(book.bookId)}">
           <span class="book-title">${escapeHtml(book.title || book.bookId)}</span>
-          <span class="book-meta">${escapeHtml(book.author || "Unknown author")} · ${read}/${total} · ${book.annotationCount || 0} notes</span>
+          <span class="book-meta">${escapeHtml(book.author || "未知作者")} · ${read}/${total} · ${book.annotationCount || 0} 条批注</span>
           <span class="progress"><span style="width: ${pct}%"></span></span>
         </button>
-        <button class="book-delete" data-delete-book="${escapeHtml(book.bookId)}" title="Delete this book">Delete</button>
+        <button class="book-delete" data-delete-book="${escapeHtml(book.bookId)}" title="从书库移除这本书">移除</button>
       </div>`;
     })
     .join("");
@@ -184,7 +223,7 @@ function renderChunks() {
     .map(
       (chunk) => `<button class="chunk ${chunk.id === state.chunkId ? "active" : ""}" data-chunk="${escapeHtml(chunk.id)}">
         <span class="chunk-title">${escapeHtml(chunk.title)}</span>
-        <span class="chunk-meta">${escapeHtml(chunk.id)} · ${chunk.read ? "read" : "unread"} · ${chunk.annotationCount || 0} notes</span>
+        <span class="chunk-meta">${escapeHtml(chunk.id)} · ${chunk.read ? "已读" : "未读"} · ${chunk.annotationCount || 0} 条批注</span>
       </button>`,
     )
     .join("");
@@ -260,7 +299,7 @@ function renderAnnotations() {
         ${isShared ? `<p class="shared-line">这里有两个人的折痕。</p>` : ""}
         <p class="note-quote">${escapeHtml(note.quote)}</p>
         <p class="note-body">${formatNote(note.note)}</p>
-        <div class="note-meta">${escapeHtml(formatIdentity(note.author))} · ${escapeHtml(note.kind || "note")} · ${escapeHtml(note.status || "published")}${replies ? ` · ${replies} replies` : ""}</div>
+        <div class="note-meta">${escapeHtml(formatIdentity(note.author))} · ${escapeHtml(formatKind(note.kind || "note"))} · ${escapeHtml(formatStatus(note.status || "published"))}${replies ? ` · ${replies} 条回复` : ""}</div>
         ${
           expanded
             ? renderThread(note, notes)
@@ -271,10 +310,10 @@ function renderAnnotations() {
     .join("");
 
   $("submit-notes").disabled = openCount === 0;
-  $("submit-notes").textContent = openCount ? `Send ${openCount} to Claude` : "Send to Claude";
+  $("submit-notes").textContent = openCount ? `分享 ${openCount} 条批注` : "分享批注";
   $("status").textContent = openCount
-    ? `${openCount} private note${openCount === 1 ? "" : "s"} waiting.`
-    : "Private notes stay local until you send them.";
+    ? `有 ${openCount} 条未分享的批注。`
+    : "批注先保存在书屋，分享后共读伙伴才能读取。";
 }
 
 function currentBook() {
@@ -295,7 +334,7 @@ function refreshCards({ finish = null, show = false } = {}) {
   });
   if (state.cardIndex >= state.cardCandidates.length) state.cardIndex = 0;
   $("show-card").disabled = state.cardCandidates.length === 0;
-  $("show-card").textContent = state.cardCandidates.length ? `Cards ${state.cardCandidates.length}` : "Cards";
+  $("show-card").textContent = state.cardCandidates.length ? `书签卡片 ${state.cardCandidates.length}` : "书签卡片";
   if (show && state.cardCandidates.length) {
     openCardPanel();
   } else {
@@ -492,11 +531,11 @@ async function selectBook(bookId) {
   state.chunks = await api(`/api/books/${encodeURIComponent(bookId)}/chunks`);
   state.annotations = await api(`/api/annotations?bookId=${encodeURIComponent(bookId)}`);
   const book = state.books.find((item) => item.bookId === bookId);
-  $("book-meta").textContent = book?.author || "Unknown author";
+  $("book-meta").textContent = book?.author || "未知作者";
   $("book-title").textContent = book?.title || bookId;
-  $("chunk-file").textContent = "No chapter selected";
-  $("chunk-title").textContent = "Open a chapter to start reading";
-  $("text").innerHTML = `<p class="empty">Choose a chapter. Highlight text to leave a note for Claude.</p>`;
+  $("chunk-file").textContent = "尚未选择章节";
+  $("chunk-title").textContent = "打开章节，开始共读";
+  $("text").innerHTML = `<p class="empty">请选择章节。选中文字，就能写下你的批注。</p>`;
   $("mark-read").disabled = true;
   $("continue-reading").disabled = false;
   document.body.classList.add("has-book");
@@ -516,11 +555,11 @@ function clearBookSelection() {
   state.activeAnnotationId = null;
   state.cardCandidates = [];
   state.replyDrafts = {};
-  $("book-meta").textContent = "Choose a book";
-  $("book-title").textContent = "Reading shelf";
-  $("chunk-file").textContent = "No chapter selected";
-  $("chunk-title").textContent = "Open a chapter to start reading";
-  $("text").innerHTML = `<p class="empty">Select a book and chapter. Highlight text to leave a note for Claude.</p>`;
+  $("book-meta").textContent = "请选择一本书";
+  $("book-title").textContent = "阅读书架";
+  $("chunk-file").textContent = "尚未选择章节";
+  $("chunk-title").textContent = "打开章节，开始共读";
+  $("text").innerHTML = `<p class="empty">请选择书籍和章节。选中文字，就能写下你的批注。</p>`;
   $("mark-read").disabled = true;
   $("continue-reading").disabled = true;
   $("show-card").disabled = true;
@@ -532,10 +571,10 @@ function clearBookSelection() {
 async function deleteBookFromShelf(bookId) {
   const book = state.books.find((item) => item.bookId === bookId);
   const label = book?.title || bookId;
-  if (!confirm(`Delete "${label}" from this library?\n\nThe files and related notes will be archived under data/trash.`)) return;
+  if (!confirm(`确定从书库移除《${label}》吗？\n\n书籍及相关批注、进度和卡片将移入回收站，默认保留 30 天。`)) return;
 
   const result = await api(`/api/books/${encodeURIComponent(bookId)}`, { method: "DELETE" });
-  $("status").textContent = result.message || `Deleted ${label}.`;
+  $("status").textContent = `已将《${label}》移入回收站。`;
   await loadBooks();
   if (state.bookId === bookId) clearBookSelection();
   renderBooks();
@@ -598,7 +637,7 @@ async function refreshCurrent({ force = false } = {}) {
     if (state.bookId) {
       if (!state.books.some((book) => book.bookId === state.bookId)) {
         clearBookSelection();
-        $("status").textContent = "This book was deleted from the active library.";
+        $("status").textContent = "这本书已从书库移除。";
         return;
       }
       state.chunks = await api(`/api/books/${encodeURIComponent(state.bookId)}/chunks`);
@@ -733,8 +772,8 @@ $("submit-notes").addEventListener("click", async () => {
   });
   await refreshCurrent({ force: true });
   $("status").textContent = result.submissionId
-    ? `Shared ${result.count} note${result.count === 1 ? "" : "s"} with Claude. Submission ${result.submissionId}.`
-    : result.message || "No private notes to share.";
+    ? `已分享 ${result.count} 条批注。请在聊天中让共读伙伴读取最新提交。`
+    : "没有待分享的批注。";
 });
 
 $("mark-read").addEventListener("click", async () => {
@@ -755,7 +794,7 @@ $("continue-reading").addEventListener("click", async () => {
   const next = await api(`/api/continue?bookId=${encodeURIComponent(state.bookId)}`);
   const chunkId = next?.chunk?.chunk?.id || next?.chunk?.chunkId || next?.chunk?.id;
   if (!chunkId) {
-    $("status").textContent = next?.message || "Nothing left to continue.";
+    $("status").textContent = "这本书已全部读完，可以回看喜欢的章节。";
     return;
   }
   await selectChunk(chunkId);
@@ -786,7 +825,7 @@ $("import-file").addEventListener("change", async (event) => {
   try {
     const imported = [];
     for (const file of files) {
-      $("status").textContent = `Importing ${file.name}...`;
+      $("status").textContent = `正在导入 ${file.name}……`;
       const manifest = await api("/api/import", {
         method: "POST",
         body: {
@@ -796,7 +835,7 @@ $("import-file").addEventListener("change", async (event) => {
       });
       imported.push(manifest);
     }
-    $("status").textContent = files.length === 1 ? `Imported ${files[0].name}.` : `Imported ${files.length} books.`;
+    $("status").textContent = files.length === 1 ? `已导入 ${files[0].name}。` : `已导入 ${files.length} 本书。`;
     await loadBooks();
     renderBooks();
     if (imported.length === 1 && imported[0]?.bookId) {
@@ -811,7 +850,7 @@ $("import-file").addEventListener("change", async (event) => {
 });
 
 function showError(error) {
-  const msg = error.message || String(error);
+  const msg = translateError(error.message || String(error));
   $("status").textContent = msg;
   showToast(msg);
 }
