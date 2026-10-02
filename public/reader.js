@@ -269,7 +269,7 @@ function renderText() {
     cursor = highlight.end;
   }
   html += escapeHtml(text.slice(cursor));
-  $("text").innerHTML = html;
+  $("text").innerHTML = html.replace(/\n{2,}/g, (breaks) => `<span class="paragraph-break">${breaks}</span>`);
   bindMarkActions();
 }
 
@@ -597,6 +597,22 @@ async function selectChunk(chunkId) {
   scrollToPanel(".reader");
 }
 
+function syncNoteViewport() {
+  const viewport = window.visualViewport;
+  document.documentElement.style.setProperty("--note-viewport-top", `${viewport?.offsetTop || 0}px`);
+  document.documentElement.style.setProperty("--note-viewport-height", `${viewport?.height || window.innerHeight}px`);
+}
+
+window.visualViewport?.addEventListener("resize", syncNoteViewport);
+window.visualViewport?.addEventListener("scroll", syncNoteViewport);
+window.addEventListener("resize", syncNoteViewport);
+
+function closeNoteForm() {
+  $("note").blur();
+  $("note-form").hidden = true;
+  document.body.classList.remove("note-open");
+}
+
 function openNoteForm(quote) {
   state.quote = quote.trim();
   state.quoteOffset = state.selectedQuote === state.quote ? state.selectedQuoteOffset : null;
@@ -604,7 +620,9 @@ function openNoteForm(quote) {
   $("quote-preview").textContent = state.quote;
   $("note").value = "";
   $("note-form").hidden = false;
-  $("note").focus();
+  document.body.classList.add("note-open");
+  syncNoteViewport();
+  $("note").focus({ preventScroll: true });
 }
 
 function activateAnnotation(noteId, { scroll = false } = {}) {
@@ -684,7 +702,7 @@ $("text").addEventListener("click", (event) => {
 document.addEventListener("selectionchange", updateSelectionAction);
 
 $("cancel-note").addEventListener("click", () => {
-  $("note-form").hidden = true;
+  closeNoteForm();
 });
 
 $("note-form").addEventListener("submit", async (event) => {
@@ -702,7 +720,7 @@ $("note-form").addEventListener("submit", async (event) => {
       kind: "note",
     },
   });
-  $("note-form").hidden = true;
+  closeNoteForm();
   window.getSelection()?.removeAllRanges();
   updateSelectionAction();
   await refreshCurrent({ force: true });
