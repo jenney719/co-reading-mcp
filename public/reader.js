@@ -1,4 +1,5 @@
 import { buildCardCandidates, pickCard, sharedNoteIdSet } from "./card-logic.js";
+import { groupAnnotationRanges } from "./annotation-layout.js";
 
 const state = {
   books: [],
@@ -240,39 +241,19 @@ function renderText() {
   const text = state.chunk.text || "";
   const notes = state.annotations.filter((item) => item.chunkId === state.chunkId);
   const sharedIds = sharedNoteIdSet(notes);
-  const highlights = [];
-  const occupied = [];
-  const rootNotes = notes
-    .filter((item) => !item.parentId && item.quote)
-    .sort((a, b) => {
-      const left = Number.isInteger(a.quoteOffset) ? a.quoteOffset : text.indexOf(a.quote);
-      const right = Number.isInteger(b.quoteOffset) ? b.quoteOffset : text.indexOf(b.quote);
-      return left - right;
-    });
-  for (const note of rootNotes) {
-    const quote = String(note.quote || "");
-    const requestedOffset = Number(note.quoteOffset);
-    const start =
-      Number.isInteger(requestedOffset) && requestedOffset >= 0 && text.slice(requestedOffset, requestedOffset + quote.length) === quote
-        ? requestedOffset
-        : text.indexOf(quote);
-    if (!quote || start < 0) continue;
-    const end = start + quote.length;
-    if (occupied.some((range) => start < range.end && end > range.start)) continue;
-    occupied.push({ start, end });
-    highlights.push({ start, end, note, shared: sharedIds.has(note.id) });
-  }
-
+  const groups = groupAnnotationRanges(text, notes);
   let html = "";
   let cursor = 0;
-  for (const highlight of highlights) {
-    html += escapeHtml(text.slice(cursor, highlight.start));
-    const quote = escapeHtml(text.slice(highlight.start, highlight.end));
-    const bookmark = highlight.shared ? `<span class="shared-bookmark" title="这里有两个人的折痕。">此处有回声</span>` : "";
-    html += `<mark class="${annotationAuthorClass(highlight.note.author)} ${highlight.note.id === state.activeAnnotationId ? "active" : ""} ${highlight.shared ? "shared" : ""}" data-note-id="${escapeHtml(highlight.note.id)}" title="${escapeHtml(highlight.note.note)}">${quote}</mark>${bookmark}${
-      highlight.note.id === state.activeAnnotationId ? renderInlineNote(highlight.note, notes) : ""
-    }`;
-    cursor = highlight.end;
+  for (const group of groups) {
+    const active = group.notes.find(note => note.id === state.activeAnnotationId);
+    const lead = active || group.notes[0];
+    const shared = group.notes.some(note => sharedIds.has(note.id));
+    html += escapeHtml(text.slice(cursor, group.start));
+    const quote = escapeHtml(text.slice(group.start, group.end));
+    const bookmark = shared ? '<span class="shared-bookmark" title="这里有两个人的折痕。">此处有回声</span>' : "";
+    html += `<mark class="${annotationAuthorClass(lead.author)} ${active ? "active" : ""} ${shared ? "shared" : ""}" data-note-id="${escapeHtml(lead.id)}" title="${escapeHtml(lead.note)}">${quote}</mark>${bookmark}`;
+    if (active) html += group.notes.map(note => renderInlineNote(note, notes)).join("");
+    cursor = group.end;
   }
   html += escapeHtml(text.slice(cursor));
   $("text").innerHTML = html.replace(/\n{2,}/g, (breaks) => `<span class="paragraph-break">${breaks}</span>`);
