@@ -1,5 +1,6 @@
 import { buildCardCandidates, pickCard, sharedNoteIdSet } from "./card-logic.js";
 import { groupAnnotationRanges } from "./annotation-layout.js";
+import { saveReadingPosition, readingPosition, lastReadingBook } from "./reading-position.js";
 
 const state = {
   books: [],
@@ -20,6 +21,7 @@ const state = {
   refreshInFlight: false,
   composing: false,
   replyDrafts: {},
+  restoringPosition: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -88,7 +90,7 @@ function isMobileLayout() {
 function scrollToPanel(selector) {
   if (!isMobileLayout()) return;
   requestAnimationFrame(() => {
-    document.querySelector(selector)?.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (!state.restoringPosition) document.querySelector(selector)?.scrollIntoView({ block: "start", behavior: "smooth" });
   });
 }
 
@@ -324,7 +326,7 @@ function refreshCards({ finish = null, show = false } = {}) {
     finish,
   });
   if (state.cardIndex >= state.cardCandidates.length) state.cardIndex = 0;
-  $("show-card").disabled = state.cardCandidates.length === 0;
+  $("show-card").disabled = state.books.length === 0;
   $("show-card").textContent = state.cardCandidates.length ? `书签卡片 ${state.cardCandidates.length}` : "书签卡片";
   if (show && state.cardCandidates.length) {
     openCardPanel();
@@ -442,7 +444,8 @@ function cardSizeClass(card) {
 }
 
 function openCardPanel() {
-  if (!state.cardCandidates.length) return;
+  if (!state.chunkId) return showToast("请先打开一个阅读片段，再查看它的书签卡片。");
+  if (!state.cardCandidates.length) return showToast("这一片段暂无卡片。分享批注或和共读伙伴留下共鸣后再试。");
   $("card-panel").hidden = false;
   renderCardPanel();
 }
@@ -508,12 +511,66 @@ function selectionDetails(selection) {
   };
 }
 
+function rememberReadingPosition() {
+  if (state.restoringPosition || !state.bookId || !state.chunkId || !state.chunk || isEditingDraft()) return;
+  if (state.chunks.find(chunk => chunk.id === state.chunkId)?.read) return;
+  const text = $("text");
+  const top = text.getBoundingClientRect().top + window.scrollY;
+  saveReadingPosition(localStorage, {
+    bookId: state.bookId,
+    chunkId: state.chunkId,
+    pageOffset: Math.max(0, window.scrollY - top),
+    textOffset: text.scrollTop,
+  });
+}
+
+let positionTimer;
+function scheduleReadingPosition() {
+  clearTimeout(positionTimer);
+  positionTimer = setTimeout(rememberReadingPosition, 150);
+}
+window.addEventListener("scroll", scheduleReadingPosition, { passive: true });
+$("text").addEventListener("scroll", scheduleReadingPosition, { passive: true });
+window.addEventListener("pagehide", rememberReadingPosition);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) rememberReadingPosition();
+});
+
+async function resumeReading() {
+  rememberReadingPosition();
+  const bookId = state.bookId || lastReadingBook(localStorage, state.books);
+  if (!bookId) return showToast("请先导入一本书。");
+  if (state.bookId !== bookId) await selectBook(bookId);
+  const saved = readingPosition(localStorage, bookId, state.chunks);
+  if (saved) {
+    state.restoringPosition = true;
+    try {
+      await selectChunk(saved.chunkId);
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      $("text").scrollTop = saved.textOffset;
+      const top = $("text").getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: top + saved.pageOffset, behavior: "auto" });
+      showToast("已回到上次停下的位置");
+    } finally {
+      state.restoringPosition = false;
+    }
+    return;
+  }
+  const next = await api(`/api/continue?bookId=${encodeURIComponent(bookId)}`);
+  const chunkId = next?.chunk?.chunk?.id || next?.chunk?.chunkId || next?.chunk?.id;
+  if (!chunkId) return showToast("这本书已全部读完，可以回看喜欢的章节。");
+  await selectChunk(chunkId);
+}
+
 async function loadBooks() {
   state.books = await api("/api/books");
   renderBooks();
+  $("continue-reading").disabled = state.books.length === 0;
+  $("show-card").disabled = state.books.length === 0;
 }
 
 async function selectBook(bookId) {
+  rememberReadingPosition();
   state.bookId = bookId;
   state.chunkId = null;
   state.chunk = null;
@@ -534,6 +591,7 @@ async function selectBook(bookId) {
   renderBooks();
   renderChunks();
   renderAnnotations();
+  refreshCards();
   scrollToPanel(".chapters");
 }
 
@@ -572,7 +630,9 @@ async function deleteBookFromShelf(bookId) {
 }
 
 async function selectChunk(chunkId) {
+  rememberReadingPosition();
   state.chunkId = chunkId;
+  state.chunk = null;
   state.activeAnnotationId = null;
   state.chunk = await api(`/api/books/${encodeURIComponent(state.bookId)}/chunks/${encodeURIComponent(chunkId)}`);
   state.lastFinish = null;
@@ -586,6 +646,7 @@ async function selectChunk(chunkId) {
   renderAnnotations();
   refreshCards();
   scrollToPanel(".reader");
+  if (!state.restoringPosition) requestAnimationFrame(rememberReadingPosition);
 }
 
 function syncNoteViewport() {
@@ -798,16 +859,7 @@ $("mark-read").addEventListener("click", async () => {
   }
 });
 
-$("continue-reading").addEventListener("click", async () => {
-  if (!state.bookId) return;
-  const next = await api(`/api/continue?bookId=${encodeURIComponent(state.bookId)}`);
-  const chunkId = next?.chunk?.chunk?.id || next?.chunk?.chunkId || next?.chunk?.id;
-  if (!chunkId) {
-    $("status").textContent = "这本书已全部读完，可以回看喜欢的章节。";
-    return;
-  }
-  await selectChunk(chunkId);
-});
+$("continue-reading").addEventListener("click", () => resumeReading().catch(showError));
 
 $("refresh").addEventListener("click", () => refreshCurrent({ force: true }).catch(showError));
 
