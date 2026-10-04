@@ -236,6 +236,10 @@ function renderChunks() {
     .join("");
 }
 
+function formatReadingFragment(value) {
+  return escapeHtml(value).replace(/\n{2,}/g, (breaks) => `<span class="paragraph-break">${breaks}</span>`);
+}
+
 function renderText() {
   if (!state.chunk) return;
   const text = state.chunk.text || "";
@@ -248,15 +252,15 @@ function renderText() {
     const active = group.notes.find(note => note.id === state.activeAnnotationId);
     const lead = active || group.notes[0];
     const shared = group.notes.some(note => sharedIds.has(note.id));
-    html += escapeHtml(text.slice(cursor, group.start));
-    const quote = escapeHtml(text.slice(group.start, group.end));
+    html += formatReadingFragment(text.slice(cursor, group.start));
+    const quote = formatReadingFragment(text.slice(group.start, group.end));
     const bookmark = shared ? '<span class="shared-bookmark" title="这里有两个人的折痕。">此处有回声</span>' : "";
     html += `<mark class="${annotationAuthorClass(lead.author)} ${active ? "active" : ""} ${shared ? "shared" : ""}" data-note-id="${escapeHtml(lead.id)}" title="${escapeHtml(lead.note)}">${quote}</mark>${bookmark}`;
     if (active) html += group.notes.map(note => renderInlineNote(note, notes)).join("");
     cursor = group.end;
   }
-  html += escapeHtml(text.slice(cursor));
-  $("text").innerHTML = html.replace(/\n{2,}/g, (breaks) => `<span class="paragraph-break">${breaks}</span>`);
+  html += formatReadingFragment(text.slice(cursor));
+  $("text").innerHTML = html;
   bindMarkActions();
 }
 
